@@ -1,0 +1,137 @@
+---
+title: "TidyTemplate"
+date: 2022-12-08
+output: html_document
+---
+
+# TidyTuesday
+
+Join the R4DS Online Learning Community in the weekly #TidyTuesday event!
+Every week we post a raw dataset, a chart or article related to that dataset, and ask you to explore the data.
+While the dataset will be “tamed”, it will not always be tidy! As such you might need to apply various R for Data Science techniques to wrangle the data into a true tidy format.
+The goal of TidyTuesday is to apply your R skills, get feedback, explore other’s work, and connect with the greater #RStats community!
+As such we encourage everyone of all skills to participate!
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(tidytuesdayR)
+library(sf)
+library(viridis)
+library(gridExtra)
+
+```
+
+# Load the weekly Data
+
+Download the weekly data and make available in the `tt` object.
+
+```{r Load}
+
+tt <- tt_load("2022-12-06")
+
+```
+
+
+# Readme
+
+Take a look at the readme for the weekly data to get insight on the dataset.
+This includes a data dictionary, source, and a link to an article on the data.
+
+```{r Readme, eval = interactive()}
+
+tt
+
+```
+
+
+# Glimpse Data
+
+Take an initial look at the format of the data available.
+
+```{r Glimpse}
+
+tt %>% 
+  map(glimpse)
+
+```
+
+# Wrangle
+
+Explore the data and process it into a nice format for plotting! Access each dataset by name by using a dollarsign after the `tt` object and then the name of the data set.
+
+```{r Wrangle}
+tt_elevator_tidy <- tt$elevators %>%
+  select(-HOUSE_NUMBER,-STREET_NAME,-ZIP_CODE,-matches("LASTPER_INSP"),-...27,-DV_MANUFACTURER,-DV_MACHINE_TYPE,-DV_SAFETY_TYPE,
+         -DV_MODE_OPERATION,-DV_FLOOR_FROM,-DV_FLOOR_TO,-DV_TRAVEL_DISTANCE,-`Device Status`) %>%
+  mutate(DV_DEVICE_STATUS_DESCRIPTION = ifelse(DV_DEVICE_STATUS_DESCRIPTION == "NO JURIST","NO JURISDICTION",DV_DEVICE_STATUS_DESCRIPTION)) %>%
+  mutate(DV_DEVICE_STATUS_DESCRIPTION = ifelse(DV_DEVICE_STATUS_DESCRIPTION == "WK IN PROG","WORK IN PROGRESS",
+                                               DV_DEVICE_STATUS_DESCRIPTION)) %>%
+  drop_na(Borough)
+
+tt_elevator_status <- tt_elevator_tidy %>%
+  count(DV_DEVICE_STATUS_DESCRIPTION)
+
+tt_elevator_status_borough <- tt_elevator_tidy %>%
+  count(Borough,DV_DEVICE_STATUS_DESCRIPTION)
+
+tt_elevator_type_status_borough <- tt_elevator_tidy %>%
+  filter(DV_DEVICE_STATUS_DESCRIPTION == "ACTIVE") %>%
+  count(Borough,`Device Type`)
+
+nyc_boroughs <- st_read(dsn="Borough_Boundaries/nyc_borough_boundaries.shp")
+
+tt_elevator_status_borough <- tt_elevator_status_borough %>%
+  inner_join(nyc_boroughs, by = c("Borough" = "boro_name"))
+
+tt_elevator_type_status_borough <- tt_elevator_type_status_borough %>%
+  inner_join(nyc_boroughs, by = c("Borough" = "boro_name"))
+
+```
+
+
+# Visualize
+
+Using your processed dataset, create your unique visualization.
+
+```{r Visualize, warning=FALSE}
+for(s in 1:nrow(tt_elevator_status)) {
+
+  tt_s <- tt_elevator_status_borough %>% filter(DV_DEVICE_STATUS_DESCRIPTION == tt_elevator_status$DV_DEVICE_STATUS_DESCRIPTION[s])
+  
+  ggp[[s]] <- ggplot(tt_s) +
+    geom_sf(data = nyc_boroughs, fill = "gray70", color = NA) +
+    geom_sf(aes(fill = n,geometry = geometry)) +
+    geom_sf_label(aes(label = Borough,geometry = geometry)) +
+    scale_fill_viridis() +
+    theme_classic() +
+    labs(title = tt_s$DV_DEVICE_STATUS_DESCRIPTION) +
+    theme(
+      axis.text.x = element_blank(),
+      axis.text.y = element_blank(),
+      axis.title = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.line.x = element_blank(),
+      axis.line.y = element_blank(),
+      panel.border = element_blank()
+    )
+  ggsave(filename = paste0("TidyTuesday_12-6-2022_",tt_s$DV_DEVICE_STATUS_DESCRIPTION,".png"),
+         device = "png")
+}
+```
+
+# Save Image
+
+Save your image for sharing. Be sure to use the `#TidyTuesday` hashtag in your post on twitter! 
+
+```{r}
+
+# This will save your most recent plot
+ggsave(
+  filename = "My TidyTuesday Plot.png",
+  device = "png")
+
+```
