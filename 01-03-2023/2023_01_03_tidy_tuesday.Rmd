@@ -1,0 +1,117 @@
+---
+title: "TidyTemplate"
+date: 2023-01-02
+output: html_document
+---
+
+# TidyTuesday
+
+Join the R4DS Online Learning Community in the weekly #TidyTuesday event!
+Every week we post a raw dataset, a chart or article related to that dataset, and ask you to explore the data.
+While the dataset will be “tamed”, it will not always be tidy! As such you might need to apply various R for Data Science techniques to wrangle the data into a true tidy format.
+The goal of TidyTuesday is to apply your R skills, get feedback, explore other’s work, and connect with the greater #RStats community!
+As such we encourage everyone of all skills to participate!
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(janitor)
+library(viridis)
+library(patchwork)
+
+```
+
+# Load the weekly Data
+
+Download the weekly data and make available in the `tt` object.
+
+```{r Load}
+
+flunet_df <- read_csv("C:/Users/linco/OneDrive/Documents/TidyTuesday/2023-01-03/FluNet_AMR_SENTINEL_01-01-2020 to 12-31-2021.csv")
+
+```
+
+# Glimpse Data
+
+Take an initial look at the format of the data available.
+
+```{r Glimpse}
+
+flunet_df %>% 
+  glimpse()
+
+```
+
+# Wrangle
+
+Explore the data and process it into a nice format for plotting! Access each dataset by name by using a dollarsign after the `tt` object and then the name of the data set.
+
+```{r Wrangle}
+
+flunet_tidy <- flunet_df |>
+  pivot_longer(cols = c(matches("AH\\d{1}."),matches("INF."),matches("AH\\d{1}"), BVIC, BYAM,
+                        ANOTSUBTYPED,BNOTDETERMINED), 
+               names_to = "flu_species", values_to = "counts") |>
+  clean_names() |>
+  filter(country_code == "USA") |>
+  replace_na(list("counts" = 0))
+
+```
+
+
+# Visualize
+
+Using your processed dataset, create your unique visualization.
+
+```{r Visualize, fig.height=7, fig.width=10}
+
+ggp_flunet <- flunet_tidy |>
+  filter(flu_species != "INF_NEGATIVE") |>
+  ggplot(aes(x = iso_sdate, y = counts, color = flu_species)) +
+    geom_line() +
+    xlab("Date") +
+    ylab("Number of Observed Subtypes") +
+    labs(title = "All Influenza Subtypes") +
+    scale_color_viridis(discrete = T)
+
+ggp_flunet_A <- flunet_tidy |>
+  filter(grepl("^AH\\d{1}.*",flunet_tidy$flu_species) | grepl("^A\\w*",flunet_tidy$flu_species)) |>
+  ggplot(aes(x = iso_sdate,y=counts,color=flu_species)) +
+    geom_line() +
+    xlab("Date") +
+    ylab("Number of Observed Subtypes") +
+    labs(title = "Influenza A") +
+    scale_color_viridis(discrete = T) +
+    guides(color = "none")
+
+ggp_flunet_B <- flunet_tidy |>
+  filter(grepl("^B\\w*",flunet_tidy$flu_species)) |>
+  ggplot(aes(x = iso_sdate,y=counts,color=flu_species)) +
+    geom_line() +
+    xlab("Date") +
+    ylab("Number of Observed Subtypes") +
+    labs(title = "Influenza B") +
+    scale_color_viridis(discrete = T) +
+    guides(color = "none")
+
+p <- (ggp_flunet_A | ggp_flunet_B)/ ggp_flunet + plot_layout(guides = "collect") + 
+  plot_annotation(title = "Influenza Species Detected from Jan 06 2020 to December 27 2021",
+                  subtitle = "Provided by USA Sentinel Sites") & theme_classic() 
+
+p
+```
+
+# Save Image
+
+Save your image for sharing. Be sure to use the `#TidyTuesday` hashtag in your post on twitter! 
+
+```{r}
+
+# This will save your most recent plot
+ggsave(
+  filename = "My TidyTuesday Plot.png",
+  device = "png")
+
+```
